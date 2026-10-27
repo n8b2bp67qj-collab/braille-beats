@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Type a sentence or paste braille and hear it as a drum pattern. Every raised dot is a hit. Swing, editable steps and MIDI export.">
+<meta property="og:title" content="Braille Beats">
+<meta property="og:description" content="Turn braille into drum patterns. Every raised dot is a hit.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232743D6'/%3E%3Ccircle cx='11' cy='9' r='3.2' fill='white'/%3E%3Ccircle cx='11' cy='16' r='3.2' fill='white'/%3E%3Ccircle cx='21' cy='16' r='3.2' fill='white'/%3E%3Ccircle cx='11' cy='23' r='3.2' fill='white'/%3E%3C/svg%3E">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; font: 14px system-ui, -apple-system, sans-serif; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>Braille Beats</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Noto+Sans+Symbols+2&display=swap">
+<style>
+/* Layout: one column. Text slab → transport strip → sequencer drawn as enlarged braille cells (2 columns = 2 sixteenths). */
+:root {
+  --bg: #E7EBF1;
+  --surface: #FFFFFF;
+  --sunk: #D8DEE8;
+  --ink: #131722;
+  --muted: #586172;
+  --line: #C6CEDA;
+  --accent: #2743D6;
+  --accent-ink: #FFFFFF;
+  --kick: #D2440C;
+  --snare: #A86F00;
+  --hat: #0C8576;
+  --perc: #8A36C0;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-braille: "Noto Sans Symbols 2", "Apple Braille", "Segoe UI Symbol", "DejaVu Sans", sans-serif;
+  --row: 30px;
+  --head: 62px;
+  --col: 28px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1218; --surface: #181C25; --sunk: #232836; --ink: #E7EAF0; --muted: #98A1B2; --line: #2F3545;
+    --accent: #7D93FF; --accent-ink: #0F1218;
+    --kick: #FF7A45; --snare: #F2B632; --hat: #3FD3BF; --perc: #C58BFF;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1218; --surface: #181C25; --sunk: #232836; --ink: #E7EAF0; --muted: #98A1B2; --line: #2F3545;
+  --accent: #7D93FF; --accent-ink: #0F1218;
+  --kick: #FF7A45; --snare: #F2B632; --hat: #3FD3BF; --perc: #C58BFF;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; }
+h1 { margin: 0; font-size: clamp(28px, 5vw, 40px); line-height: 1.05; letter-spacing: -0.01em; text-wrap: balance; }
+h1 .glyph { font-family: var(--font-braille); color: var(--accent); font-weight: 400; margin-right: 6px; }
+.lede { margin: 6px 0 0; color: var(--muted); max-width: 60ch; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+
+/* Input */
+.input-row { display: flex; flex-direction: column; gap: 10px; }
+label.eyebrow { display: block; }
+textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  font: 18px/1.4 var(--font-body);
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+textarea:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip {
+  font: 13px var(--font-body);
+  background: var(--sunk);
+  color: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 11px;
+  cursor: pointer;
+}
+.chip:hover { background: var(--line); }
+.chip .b { font-family: var(--font-braille); }
+.braille-out {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border-top: 1px dashed var(--line); padding-top: 12px;
+}
+.braille-out .line {
+  flex: 1 1 260px; min-width: 0;
+  font-family: var(--font-braille);
+  font-size: 30px; line-height: 1.2; letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* Transport */
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; }
+.play {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: 700 15px var(--font-body);
+  background: var(--accent); color: var(--accent-ink);
+  border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer; min-width: 104px; justify-content: center;
+}
+.play svg { width: 14px; height: 14px; fill: currentColor; }
+.ctl { display: flex; flex-direction: column; gap: 2px; }
+.ctl .row { display: flex; align-items: center; gap: 8px; }
+.ctl output { font-family: var(--font-mono); font-variant-numeric: tabular-nums; min-width: 4.5ch; font-size: 14px; }
+input[type="range"] { width: 120px; accent-color: var(--accent); }
+.seg { display: inline-flex; background: var(--sunk); border-radius: 8px; padding: 3px; gap: 2px; }
+.seg button {
+  font: 13px var(--font-body); color: var(--muted);
+  background: transparent; border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.check input { accent-color: var(--accent); }
+.spacer { flex: 1 1 0; }
+.btn {
+  font: 13px var(--font-body); color: var(--ink);
+  background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer;
+}
+.btn:hover { background: var(--sunk); }
+
+/* Sequencer */
+.seq { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 10px; }
+.lanes { display: flex; flex-direction: column; }
+.lanes .headspace { height: var(--head); display: flex; align-items: end; padding-bottom: 8px; }
+.lane { height: var(--row); display: flex; align-items: center; gap: 6px; }
+.lane .sw { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
+.lane .dots { font-family: var(--font-mono); font-size: 11px; color: var(--muted); width: 3.2ch; }
+.lane select {
+  font: 13px var(--font-body); color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; max-width: 112px;
+}
+.scroller { overflow-x: auto; padding-bottom: 6px; }
+.cells { display: flex; gap: 8px; width: max-content; padding-right: 8px; }
+.cell { display: flex; flex-direction: column; position: relative; }
+.cell.bar { margin-left: 10px; }
+.cell.bar::before {
+  content: ""; position: absolute; left: -10px; top: 6px; bottom: 0; width: 1px; background: var(--line);
+}
+.cell .head {
+  height: var(--head);
+  display: flex; flex-direction: column; align-items: center; justify-content: end; padding-bottom: 8px;
+  position: relative;
+}
+.cell .src { font-weight: 700; font-size: 17px; line-height: 1; min-height: 17px; }
+.cell .uni { font-family: var(--font-braille); font-size: 15px; color: var(--muted); line-height: 1.2; }
+.cell .barno { position: absolute; top: 0; left: 0; font-family: var(--font-mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+.cell .body {
+  display: flex; gap: 2px;
+  background: var(--sunk); border-radius: 8px; padding: 0 2px;
+}
+.cell.pad .body { background: transparent; outline: 1px dashed var(--line); outline-offset: -1px; }
+.cell.pad .src { color: var(--muted); }
+.col { display: flex; flex-direction: column; width: var(--col); border-radius: 6px; transition: background 60ms; }
+.col.now { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.dot {
+  height: var(--row); width: var(--col);
+  display: grid; place-items: center;
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+}
+.dot::after {
+  content: ""; width: 9px; height: 9px; border-radius: 50%;
+  background: transparent; box-shadow: inset 0 0 0 1.5px var(--line);
+  transition: transform 80ms, background 80ms;
+}
+.dot:hover::after { box-shadow: inset 0 0 0 1.5px var(--muted); }
+.dot.on::after {
+  width: 18px; height: 18px;
+  background: var(--c);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.22), 0 1px 2px rgb(0 0 0 / 0.25);
+}
+.col.now .dot.on::after { transform: scale(1.18); }
+
+/* Key */
+.key { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px 28px; align-items: start; }
+.mini { display: grid; grid-template-columns: repeat(2, 34px); gap: 6px 10px; padding: 12px 14px; background: var(--sunk); border-radius: 10px; }
+.mini span {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: #fff;
+  background: var(--c);
+}
+.mini span.opt { opacity: 0.45; }
+.key h2 { margin: 0 0 6px; font-size: 18px; }
+.key p { margin: 0 0 8px; max-width: 62ch; }
+.key ul { margin: 0; padding-left: 18px; }
+.key li { margin: 2px 0; }
+.mono { font-family: var(--font-mono); font-size: 13px; }
+
+footer { color: var(--muted); font-size: 13px; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  background: var(--ink); color: var(--bg);
+  padding: 8px 14px; border-radius: 8px; font-size: 14px;
+  opacity: 0; pointer-events: none; transition: opacity 150ms;
+}
+.toast.show { opacity: 1; }
+
+@media (max-width: 560px) {
+  .key { grid-template-columns: 1fr; }
+  input[type="range"] { width: 96px; }
+  .lane .dots { display: none; }
+  .lane select { max-width: 92px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot::after, .col, .toast { transition: none; }
+  .col.now .dot.on::after { transform: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1><span class="glyph" aria-hidden="true">⠃⠃</span>Braille Beats</h1>
+      <p class="lede">Type a sentence or paste braille. Every raised dot becomes a drum hit, so the cell you'd read with a fingertip is the step pattern you hear.</p>
+    </div>
+  </header>
+
+  <section class="panel input-row" aria-label="Text input">
+    <label class="eyebrow" for="input">Text or braille</label>
+    <textarea id="input" spellcheck="false" placeholder="Type words, or paste ⠃⠗⠁⠊⠇⠇⠑"></textarea>
+    <div class="examples">
+      <span class="eyebrow">Try</span>
+      <button class="chip" data-ex="blue era">blue era</button>
+      <button class="chip" data-ex="garage">garage</button>
+      <button class="chip" data-ex="dilla donuts">dilla donuts</button>
+      <button class="chip" data-ex="⠃⠗⠑⠁⠅⠃⠑⠁⠞"><span class="b">⠃⠗⠑⠁⠅⠃⠑⠁⠞</span></button>
+      <button class="chip" data-ex="⣿⠀⢸⠁⡇⠀⠿⠤">8-dot</button>
+    </div>
+    <div class="braille-out">
+      <div class="line" id="brailleLine" aria-label="Braille output"></div>
+      <button class="btn" id="copyBraille">Copy braille</button>
+    </div>
+    <p class="note" id="skipNote" hidden></p>
+  </section>
+
+  <section class="panel" aria-label="Sequencer">
+    <div class="transport">
+      <button class="play" id="play" aria-pressed="false">
+        <svg viewBox="0 0 14 14" aria-hidden="true"><path id="playIcon" d="M2 1l11 6-11 6z"/></svg>
+        <span id="playLabel">Play</span>
+      </button>
+      <div class="ctl">
+        <span class="eyebrow">Tempo</span>
+        <div class="row"><input type="range" id="bpm" min="60" max="180" step="1"><output id="bpmOut"></output></div>
+      </div>
+      <div class="ctl">
+        <span class="eyebrow">Swing</span>
+        <div class="row"><input type="range" id="swing" min="50" max="75" step="1"><output id="swingOut"></output></div>
+      </div>
+      <div class="ctl">
+        <span class="eyebrow">Reading</span>
+        <div class="seg" role="group" aria-label="How a cell is read">
+          <button data-mode="grid" aria-pressed="true">Cell = 2 steps</button>
+          <button data-mode="chord" aria-pressed="false">Cell = 1 step</button>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="pad"> Fill to whole bars</label>
+      <span class="spacer"></span>
+      <button class="btn" id="exportMidi" hidden>Save MIDI</button>
+    </div>
+
+    <div class="seq" style="margin-top:18px">
+      <div class="lanes" id="lanes"></div>
+      <div class="scroller"><div class="cells" id="cells"></div></div>
+    </div>
+    <p class="note" style="margin-top:8px">Click any dot to toggle it. The braille above rewrites itself to match, so you can also build a beat and read it back as braille.</p>
+  </section>
+
+  <section class="panel key" aria-label="How it reads" id="key"></section>
+
+  <footer>Set in Atkinson Hyperlegible, the typeface designed by the Braille Institute. MIDI uses General MIDI drum notes (kick C1 = 36), so it lands straight on an Ableton Drum Rack.</footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  // ---------- Braille tables (dot numbers) ----------
+  const LETTERS = {
+    a:[1], b:[1,2], c:[1,4], d:[1,4,5], e:[1,5], f:[1,2,4], g:[1,2,4,5], h:[1,2,5], i:[2,4], j:[2,4,5],
+    k:[1,3], l:[1,2,3], m:[1,3,4], n:[1,3,4,5], o:[1,3,5], p:[1,2,3,4], q:[1,2,3,4,5], r:[1,2,3,5], s:[2,3,4], t:[2,3,4,5],
+    u:[1,3,6], v:[1,2,3,6], w:[2,4,5,6], x:[1,3,4,6], y:[1,3,4,5,6], z:[1,3,5,6],
+    // French accented letters (standard French braille)
+    'é':[1,2,3,4,5,6], 'à':[1,2,3,5,6], 'è':[2,3,4,6], 'ù':[2,3,4,5,6], 'â':[1,6], 'ê':[1,2,6], 'î':[1,4,6],
+    'ô':[1,4,5,6], 'û':[1,5,6], 'ë':[1,2,4,6], 'ï':[1,2,4,5,6], 'ü':[1,2,5,6], 'ç':[1,2,3,4,6], 'œ':[2,4,6],
+    ',':[2], ';':[2,3], ':':[2,5], '.':[2,5,6], '!':[2,3,5], '?':[2,3,6], "'":[3], '-':[3,6], '(':[2,3,6], ')':[3,5,6], '"':[2,3,5,6]
+  };
+  const NUM_SIGN = [3,4,5,6];
+  const DIGIT_LETTER = { '1':'a','2':'b','3':'c','4':'d','5':'e','6':'f','7':'g','8':'h','9':'i','0':'j' };
+  const maskOf = dots => dots.reduce((m, d) => m | (1 << (d - 1)), 0);
+  const REVERSE = {};
+  for (const [ch, dots] of Object.entries(LETTERS)) { const m = maskOf(dots); if (!(m in REVERSE)) REVERSE[m] = ch; }
+  const glyph = m => String.fromCharCode(0x2800 + m);
+
+  function textToCells(text) {
+    const cells = []; const skipped = new Set(); let inNumber = false;
+    for (const raw of Array.from(text)) {
+      const code = raw.codePointAt(0);
+      if (code >= 0x2800 && code <= 0x28FF) {
+        const m = code - 0x2800; cells.push({ mask: m, src: REVERSE[m] || '' }); inNumber = false; continue;
+      }
+      if (/\s/.test(raw)) { cells.push({ mask: 0, src: '' }); inNumber = false; continue; }
+      if (raw in DIGIT_LETTER) {
+        if (!inNumber) { cells.push({ mask: maskOf(NUM_SIGN), src: '#' }); inNumber = true; }
+        cells.push({ mask: maskOf(LETTERS[DIGIT_LETTER[raw]]), src: raw }); continue;
+      }
+      inNumber = false;
+      const ch = raw.toLowerCase();
+      if (LETTERS[ch]) cells.push({ mask: maskOf(LETTERS[ch]), src: ch });
+      else skipped.add(raw);
+    }
+    return { cells, skipped: [...skipped] };
+  }
+
+  // ---------- Drum voices ----------
+  const VOICES = {
+    kick:   { name: 'Kick',       note: 36, color: 'kick',  vel: 112 },
+    snare:  { name: 'Snare',      note: 38, color: 'snare', vel: 104 },
+    clap:   { name: 'Clap',       note: 39, color: 'snare', vel: 100 },
+    chat:   { name: 'Closed hat', note: 42, color: 'hat',   vel: 84 },
+    ohat:   { name: 'Open hat',   note: 46, color: 'hat',   vel: 90 },
+    shaker: { name: 'Shaker',     note: 82, color: 'hat',   vel: 76 },
+    rim:    { name: 'Rim',        note: 37, color: 'perc',  vel: 96 },
+    tom:    { name: 'Low tom',    note: 45, color: 'perc',  vel: 100 },
+  };
+
+  // In "grid" reading each lane is a row of the cell: dots[0] is the left column (1st 16th), dots[1] the right (2nd 16th).
+  // In "chord" reading the whole cell is one 16th and each dot number is its own lane.
+  const MODES = {
+    grid:  { spc: 2, lanes: [[1,4],[2,5],[3,6],[7,8]], optional: [3], voices: ['chat','snare','kick','rim'] },
+    chord: { spc: 1, lanes: [[1],[2],[3],[4],[5],[6],[7],[8]], optional: [6,7], voices: ['kick','snare','chat','ohat','clap','rim','tom','shaker'] },
+  };
+
+  // ---------- State ----------
+  const DEFAULTS = { text: 'blue era', mode: 'grid', bpm: 132, swing: 58, pad: true, voices: { grid: MODES.grid.voices.slice(), chord: MODES.chord.voices.slice() } };
+  let state = structuredClone(DEFAULTS);
+  try {
+    const saved = JSON.parse(localStorage.getItem('braille-beats') || 'null');
+    if (saved && typeof saved === 'object') state = { ...state, ...saved, voices: { ...state.voices, ...(saved.voices || {}) } };
+  } catch (e) {}
+  const persist = () => { try { localStorage.setItem('braille-beats', JSON.stringify(state)); } catch (e) {} };
+
+  let cells = [];
+  let skipped = [];
+
+  const $ = id => document.getElementById(id);
+  const input = $('input'), cellsEl = $('cells'), lanesEl = $('lanes');
+
+  function eightDotUsed() { return cells.some(c => c.mask & 0xC0); }
+  function visibleLanes() {
+    const m = MODES[state.mode], show8 = eightDotUsed();
+    return m.lanes.map((dots, i) => ({ i, dots })).filter(l => show8 || !m.optional.includes(l.i));
+  }
+  function cellCount() {
+    const spc = MODES[state.mode].spc, n = Math.max(cells.length, 1);
+    if (!state.pad) return n;
+    const perBar = 16 / spc;
+    return Math.ceil(n / perBar) * perBar;
+  }
+  const totalSteps = () => cellCount() * MODES[state.mode].spc;
+  const maskAt = c => (cells[c] ? cells[c].mask : 0);
+
+  // Which voices fire on a given 16th step
+  function hitsAt(step) {
+    const m = MODES[state.mode], c = Math.floor(step / m.spc), k = step % m.spc, mask = maskAt(c);
+    const out = [];
+    for (const l of visibleLanes()) {
+      if (mask & (1 << (l.dots[k] - 1))) out.push(state.voices[state.mode][l.i]);
+    }
+    return [...new Set(out)];
+  }
+
+  // ---------- Rendering ----------
+  function renderBraille() {
+    $('brailleLine').textContent = cells.map(c => glyph(c.mask)).join('') || '⠀';
+    const note = $('skipNote');
+    note.hidden = skipped.length === 0;
+    if (skipped.length) note.textContent = 'Skipped (no braille mapping): ' + skipped.join(' ');
+  }
+
+  let colEls = [];
+  function renderGrid() {
+    const m = MODES[state.mode], lanes = visibleLanes(), n = cellCount();
+    // lane labels
+    lanesEl.innerHTML = '';
+    const hs = document.createElement('div'); hs.className = 'headspace eyebrow'; hs.textContent = state.mode === 'grid' ? 'Row → sound' : 'Dot → sound';
+    lanesEl.append(hs);
+    for (const l of lanes) {
+      const v = state.voices[state.mode][l.i];
+      const row = document.createElement('div'); row.className = 'lane';
+      row.style.setProperty('--c', `var(--${VOICES[v].color})`);
+      const sel = document.createElement('select'); sel.id = `voice-${state.mode}-${l.i}`; sel.dataset.lane = l.i;
+      sel.setAttribute('aria-label', `Sound for ${state.mode === 'grid' ? 'row' : 'dot'} ${l.dots.join(' and ')}`);
+      for (const [key, vv] of Object.entries(VOICES)) { const o = new Option(vv.name, key); o.selected = key === v; sel.add(o); }
+      row.innerHTML = `<span class="sw"></span><span class="dots">${l.dots.join('·')}</span>`;
+      row.append(sel);
+      lanesEl.append(row);
+    }
+    // cells
+    const frag = document.createDocumentFragment(); colEls = [];
+    for (let c = 0; c < n; c++) {
+      const cell = cells[c], mask = maskAt(c);
+      const g = document.createElement('div'); g.className = 'cell';
+      const firstStep = c * m.spc;
+      if (firstStep % 16 === 0 && c > 0) g.classList.add('bar');
+      if (c >= cells.length) g.classList.add('pad');
+      const head = document.createElement('div'); head.className = 'head';
+      if (firstStep % 16 === 0) head.innerHTML = `<span class="barno">bar ${firstStep / 16 + 1}</span>`;
+      head.insertAdjacentHTML('beforeend', `<span class="src">${cell ? escapeHtml(cell.src || (mask ? '' : '␣')) : ''}</span><span class="uni">${glyph(mask)}</span>`);
+      const body = document.createElement('div'); body.className = 'body';
+      for (let k = 0; k < m.spc; k++) {
+        const col = document.createElement('div'); col.className = 'col';
+        for (const l of lanes) {
+          const v = state.voices[state.mode][l.i];
+          const d = document.createElement('button');
+          d.className = 'dot'; d.dataset.cell = c; d.dataset.lane = l.i; d.dataset.k = k;
+          d.style.setProperty('--c', `var(--${VOICES[v].color})`);
+          const on = !!(mask & (1 << (l.dots[k] - 1)));
+          if (on) d.classList.add('on');
+          d.setAttribute('aria-pressed', on); d.setAttribute('aria-label', `Step ${firstStep + k + 1}, ${VOICES[v].name}`);
+          col.append(d);
+        }
+        body.append(col); colEls.push(col);
+      }
+      g.append(head, body); frag.append(g);
+    }
+    cellsEl.replaceChildren(frag);
+  }
+
+  function renderKey() {
+    const v = state.voices[state.mode], name = k => VOICES[k].name, col = k => `var(--${VOICES[k].color})`;
+    const show8 = eightDotUsed();
+    const dotSpan = (d, voiceKey, opt) => `<span style="--c:${col(voiceKey)}" class="${opt ? 'opt' : ''}">${d}</span>`;
+    let mini, text;
+    if (state.mode === 'grid') {
+      const rows = [[1,4],[2,5],[3,6],[7,8]];
+      mini = rows.map((r, i) => r.map(d => dotSpan(d, v[i], i === 3 && !show8)).join('')).join('');
+      text = `<h2>Each cell is two sixteenths</h2>
+        <p>The left column (dots 1·2·3) plays on the first 16th, the right column (dots 4·5·6) on the next. Rows are sounds: top row ${name(v[0]).toLowerCase()}, middle ${name(v[1]).toLowerCase()}, bottom ${name(v[2]).toLowerCase()}. Eight cells fill one bar of 4/4, and a space is two steps of silence.</p>
+        <p class="note">8-dot braille adds a fourth row (dots 7·8) for ${name(v[3]).toLowerCase()}. Reading a cell this way is exactly how a step sequencer looks turned on its side.</p>`;
+    } else {
+      const order = [[1,4],[2,5],[3,6],[7,8]];
+      mini = order.map(r => r.map(d => dotSpan(d, v[d - 1], d > 6 && !show8)).join('')).join('');
+      text = `<h2>Each cell is one sixteenth</h2>
+        <p>The whole cell hits at once, like a chord. Every dot number is its own sound, so denser letters give busier steps. Sixteen cells fill one bar.</p>
+        <ul class="mono">${[1,2,3,4,5,6].map(d => `<li>dot ${d} → ${name(v[d - 1])}</li>`).join('')}${show8 ? `<li>dot 7 → ${name(v[6])}</li><li>dot 8 → ${name(v[7])}</li>` : ''}</ul>`;
+    }
+    $('key').innerHTML = `<div class="mini" aria-hidden="true">${mini}</div><div>${text}</div>`;
+  }
+
+  function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  function renderControls() {
+    $('bpm').value = state.bpm; $('bpmOut').textContent = state.bpm + ' bpm';
+    $('swing').value = state.swing; $('swingOut').textContent = state.swing + '%';
+    $('pad').checked = state.pad;
+    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
+  }
+
+  function rebuildFromText() {
+    ({ cells, skipped } = textToCells(state.text));
+    renderAll();
+  }
+  function renderAll() { renderBraille(); renderGrid(); renderKey(); renderControls(); persist(); }
+
+  // ---------- Audio ----------
+  let ctx = null, master = null, noiseBuf = null;
+  function ensureAudio() {
+    if (ctx) return ctx;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 4;
+    master = ctx.createGain(); master.gain.value = 0.8; master.connect(comp); comp.connect(ctx.destination);
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return ctx;
+  }
+  function env(t, peak, decay, attack = 0.001) {
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+    g.connect(master); return g;
+  }
+  function noise(t, dur, filterType, freq, q, dest) {
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = filterType; f.frequency.value = freq; if (q) f.Q.value = q;
+    s.connect(f); f.connect(dest); s.start(t); s.stop(t + dur + 0.05);
+  }
+  function tone(t, type, f0, f1, glide, dur, dest) {
+    const o = ctx.createOscillator(); o.type = type;
+    o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + glide);
+    o.connect(dest); o.start(t); o.stop(t + dur + 0.05);
+  }
+  const SYNTH = {
+    kick(t)  { tone(t, 'sine', 150, 46, 0.11, 0.5, env(t, 1.0, 0.45)); tone(t, 'triangle', 900, 120, 0.01, 0.02, env(t, 0.3, 0.015)); },
+    snare(t) { noise(t, 0.22, 'highpass', 1200, 0, env(t, 0.55, 0.2)); tone(t, 'triangle', 200, 170, 0.05, 0.12, env(t, 0.45, 0.1)); },
+    clap(t)  {
+      [0, 0.011, 0.022].forEach(o => noise(t + o, 0.02, 'bandpass', 1300, 1.2, env(t + o, 0.6, 0.018)));
+      noise(t + 0.03, 0.22, 'bandpass', 1300, 1.2, env(t + 0.03, 0.5, 0.18));
+    },
+    chat(t)  { noise(t, 0.06, 'highpass', 7500, 0, env(t, 0.32, 0.045)); },
+    ohat(t)  { noise(t, 0.4, 'highpass', 7000, 0, env(t, 0.28, 0.32)); },
+    shaker(t){ noise(t, 0.1, 'bandpass', 6500, 2, env(t, 0.35, 0.07, 0.012)); },
+    rim(t)   { tone(t, 'square', 1700, 0, 0, 0.03, env(t, 0.12, 0.025)); tone(t, 'triangle', 420, 0, 0, 0.04, env(t, 0.35, 0.03)); },
+    tom(t)   { tone(t, 'sine', 170, 105, 0.2, 0.35, env(t, 0.8, 0.32)); },
+  };
+
+  // ---------- Sequencer ----------
+  let playing = false, step = 0, nextTime = 0, timer = null, raf = null; const queue = []; let lit = -1;
+  const sixteenth = () => 60 / state.bpm / 4;
+  const swingOffset = s => (s % 2 ? (state.swing / 100 - 0.5) * 2 * sixteenth() : 0);
+
+  function scheduler() {
+    const total = totalSteps();
+    if (step >= total) step = 0;
+    while (nextTime < ctx.currentTime + 0.12) {
+      const t = nextTime + swingOffset(step);
+      for (const v of hitsAt(step)) SYNTH[v](t);
+      queue.push({ s: step, t });
+      nextTime += sixteenth();
+      step = (step + 1) % totalSteps();
+    }
+  }
+  function draw() {
+    while (queue.length && queue[0].t <= ctx.currentTime) {
+      const { s } = queue.shift();
+      if (colEls[lit]) colEls[lit].classList.remove('now');
+      lit = s; if (colEls[lit]) colEls[lit].classList.add('now');
+    }
+    raf = requestAnimationFrame(draw);
+  }
+  function start() {
+    ensureAudio(); ctx.resume();
+    playing = true; step = 0; queue.length = 0; nextTime = ctx.currentTime + 0.05;
+    timer = setInterval(scheduler, 25); scheduler(); draw();
+    setPlayUI();
+  }
+  function stop() {
+    playing = false; clearInterval(timer); cancelAnimationFrame(raf); queue.length = 0;
+    if (colEls[lit]) colEls[lit].classList.remove('now'); lit = -1;
+    setPlayUI();
+  }
+  function setPlayUI() {
+    $('play').setAttribute('aria-pressed', playing);
+    $('playLabel').textContent = playing ? 'Stop' : 'Play';
+    $('playIcon').setAttribute('d', playing ? 'M2 2h10v10H2z' : 'M2 1l11 6-11 6z');
+  }
+
+  // ---------- MIDI + zip ----------
+  function vlq(n) { const b = [n & 0x7f]; while ((n >>= 7)) b.unshift((n & 0x7f) | 0x80); return b; }
+  function buildMidi() {
+    const PPQ = 96, T16 = PPQ / 4, total = totalSteps();
+    const ev = []; const seen = new Set();
+    for (let s = 0; s < total; s++) {
+      const tick = s * T16 + (s % 2 ? Math.round((state.swing / 100 - 0.5) * 2 * T16) : 0);
+      for (const v of hitsAt(s)) {
+        const { note, vel } = VOICES[v]; const key = tick + ':' + note;
+        if (seen.has(key)) continue; seen.add(key);
+        ev.push({ tick, data: [0x99, note, vel], off: 0 }, { tick: tick + 12, data: [0x89, note, 0], off: 1 });
+      }
+    }
+    ev.sort((a, b) => a.tick - b.tick || b.off - a.off);
+    const name = Array.from('Braille Beats ' + cells.map(c => c.src || ' ').join('').trim()).map(c => c.charCodeAt(0) & 0x7f);
+    const usq = Math.round(60e6 / state.bpm);
+    const trk = [0x00, 0xFF, 0x03, ...vlq(name.length), ...name,
+                 0x00, 0xFF, 0x51, 0x03, (usq >> 16) & 0xff, (usq >> 8) & 0xff, usq & 0xff,
+                 0x00, 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08];
+    let last = 0;
+    for (const e of ev) { trk.push(...vlq(e.tick - last), ...e.data); last = e.tick; }
+    trk.push(...vlq(Math.max(0, total * T16 - last)), 0xFF, 0x2F, 0x00);
+    const len = trk.length;
+    return new Uint8Array([0x4D,0x54,0x68,0x64, 0,0,0,6, 0,0, 0,1, (PPQ >> 8) & 0xff, PPQ & 0xff,
+      0x4D,0x54,0x72,0x6B, (len >>> 24) & 0xff, (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff, ...trk]);
+  }
+  const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u8) { let c = 0xFFFFFFFF; for (const b of u8) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  // Single-file stored (uncompressed) zip: .mid isn't a downloadable type in the viewer, .zip is.
+  function zipOne(filename, data) {
+    const name = new TextEncoder().encode(filename), crc = crc32(data), size = data.length;
+    const le = (n, w) => Array.from({ length: w }, (_, i) => (n >>> (8 * i)) & 0xff);
+    const local = [...le(0x04034b50, 4), ...le(20, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0x21, 2), ...le(crc, 4), ...le(size, 4), ...le(size, 4), ...le(name.length, 2), ...le(0, 2), ...name];
+    const central = [...le(0x02014b50, 4), ...le(20, 2), ...le(20, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0x21, 2), ...le(crc, 4), ...le(size, 4), ...le(size, 4), ...le(name.length, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 4), ...le(0, 4), ...name];
+    const cdOffset = local.length + size;
+    const end = [...le(0x06054b50, 4), ...le(0, 2), ...le(0, 2), ...le(1, 2), ...le(1, 2), ...le(central.length, 4), ...le(cdOffset, 4), ...le(0, 2)];
+    return new Blob([new Uint8Array(local), data, new Uint8Array(central), new Uint8Array(end)]);
+  }
+  function slug() { return (cells.map(c => c.src || ' ').join('').trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'pattern').slice(0, 40); }
+
+  // Inside a Claude viewer, files go through the downloads capability (as a .zip); on a plain website, a normal .mid download.
+  let downloads = null;
+  const inViewer = !!(window.claude && typeof window.claude.use === 'function');
+  if (inViewer) {
+    $('exportMidi').textContent = 'Save MIDI (.zip)';
+    window.claude.use('downloads').then(d => { downloads = d; $('exportMidi').hidden = !d; }).catch(() => {});
+  } else {
+    $('exportMidi').hidden = false;
+  }
+  async function exportMidi() {
+    const base = `braille-beat-${slug()}-${state.bpm}bpm`;
+    if (!inViewer) {
+      const url = URL.createObjectURL(new Blob([buildMidi()], { type: 'audio/midi' }));
+      const a = document.createElement('a'); a.href = url; a.download = base + '.mid';
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast('MIDI saved');
+      return;
+    }
+    if (!downloads) return;
+    try {
+      await downloads.save({ filename: base + '.zip', data: zipOne(base + '.mid', buildMidi()) });
+      toast('MIDI saved');
+    } catch (e) {
+      if (e && e.code === 'declined') return;
+      if (e && (e.code === 'unavailable' || e.code === 'not_granted')) { $('exportMidi').hidden = true; toast('Saving files isn’t available in this view'); return; }
+      toast('Couldn’t save the MIDI file. Try again in a moment.');
+    }
+  }
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800); }
+
+  // ---------- Events ----------
+  input.addEventListener('input', () => { state.text = input.value; rebuildFromText(); });
+  document.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => { input.value = state.text = b.dataset.ex; rebuildFromText(); }));
+  $('copyBraille').addEventListener('click', () => {
+    const s = cells.map(c => glyph(c.mask)).join('');
+    navigator.clipboard.writeText(s).then(() => toast('Braille copied'), () => {
+      const r = document.createRange(); r.selectNodeContents($('brailleLine'));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Selected. Press ⌘C to copy');
+    });
+  });
+  $('play').addEventListener('click', () => (playing ? stop() : start()));
+  $('bpm').addEventListener('input', e => { state.bpm = +e.target.value; $('bpmOut').textContent = state.bpm + ' bpm'; persist(); });
+  $('swing').addEventListener('input', e => { state.swing = +e.target.value; $('swingOut').textContent = state.swing + '%'; persist(); });
+  $('pad').addEventListener('change', e => { state.pad = e.target.checked; renderAll(); });
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { state.mode = b.dataset.mode; lit = -1; renderAll(); }));
+  $('exportMidi').addEventListener('click', exportMidi);
+
+  lanesEl.addEventListener('change', e => {
+    if (e.target.tagName !== 'SELECT') return;
+    state.voices[state.mode][+e.target.dataset.lane] = e.target.value;
+    renderGrid(); renderKey(); persist();
+    if (ctx) SYNTH[e.target.value](ctx.currentTime + 0.01);
+  });
+
+  cellsEl.addEventListener('click', e => {
+    const d = e.target.closest('.dot'); if (!d) return;
+    const c = +d.dataset.cell, li = +d.dataset.lane, k = +d.dataset.k;
+    while (cells.length <= c) cells.push({ mask: 0, src: '' });
+    const bit = 1 << (MODES[state.mode].lanes[li][k] - 1);
+    cells[c].mask ^= bit;
+    cells[c].src = REVERSE[cells[c].mask] || '';
+    const turnedOn = !!(cells[c].mask & bit);
+    // The grid is now the source of truth: write it back as braille
+    state.text = input.value = cells.map(x => glyph(x.mask)).join('');
+    skipped = [];
+    const keepLit = lit;
+    renderAll();
+    lit = keepLit; if (playing && colEls[lit]) colEls[lit].classList.add('now');
+    if (turnedOn) { ensureAudio(); ctx.resume(); SYNTH[state.voices[state.mode][li]](ctx.currentTime + 0.01); }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.target.closest('textarea, input, select, button')) return;
+    e.preventDefault(); playing ? stop() : start();
+  });
+
+  input.value = state.text;
+  rebuildFromText();
+})();
+</script>
+</body>
+</html>
