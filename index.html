@@ -149,6 +149,36 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
   background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer;
 }
 .btn:hover { background: var(--sunk); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--kick); }
+
+/* Page tabs */
+.tabs { display: inline-flex; gap: 4px; background: var(--sunk); padding: 4px; border-radius: 10px; align-self: flex-start; }
+.tabs button {
+  font: 700 15px var(--font-body); color: var(--muted);
+  background: transparent; border: 0; border-radius: 7px; padding: 7px 18px; cursor: pointer;
+}
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); }
+.view { display: flex; flex-direction: column; gap: 20px; }
+
+/* Bassline */
+.knobs { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; margin-top: 14px; }
+.lane-label { font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dot.note.on::after { width: 22px; height: 14px; border-radius: 4px; }
+.dot.idle.on::after { opacity: 0.35; }
+
+/* Kit bar */
+.kitbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line);
+}
+.kitbar select, .saveform input {
+  font: 14px var(--font-body); color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px;
+}
+.kitbar select { max-width: 220px; min-width: 0; }
+.saveform { display: flex; flex-wrap: wrap; gap: 6px; }
+.saveform input { width: 170px; max-width: 100%; }
 
 /* Sequencer */
 .seq { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 10px; }
@@ -159,7 +189,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .lane .dots { font-family: var(--font-mono); font-size: 11px; color: var(--muted); width: 3.2ch; }
 .lane select {
   font: 13px var(--font-body); color: var(--ink);
-  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; max-width: 112px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; max-width: 160px;
 }
 .scroller { overflow-x: auto; padding-bottom: 6px; }
 .cells { display: flex; gap: 8px; width: max-content; padding-right: 8px; }
@@ -232,7 +262,7 @@ footer { color: var(--muted); font-size: 13px; }
   .key { grid-template-columns: 1fr; }
   input[type="range"] { width: 96px; }
   .lane .dots { display: none; }
-  .lane select { max-width: 92px; }
+  .lane select { max-width: 132px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dot::after, .col, .toast { transition: none; }
@@ -245,10 +275,16 @@ footer { color: var(--muted); font-size: 13px; }
   <header>
     <div>
       <h1><span class="glyph" aria-hidden="true">⠃⠃</span>Braille Beats</h1>
-      <p class="lede">Type a sentence or paste braille. Every raised dot becomes a drum hit, so the cell you'd read with a fingertip is the step pattern you hear.</p>
+      <p class="lede">Type a sentence or paste braille. On Drums every raised dot becomes a hit. On Bassline every cell becomes a 303 note, locked to a scale.</p>
     </div>
   </header>
 
+  <nav class="tabs" role="tablist" aria-label="Pages">
+    <button role="tab" data-view="drums" aria-selected="true">Drums</button>
+    <button role="tab" data-view="bass" aria-selected="false">Bassline</button>
+  </nav>
+
+  <div class="view" id="view-drums">
   <section class="panel input-row" aria-label="Text input">
     <label class="eyebrow" for="input">Text or braille</label>
     <textarea id="input" spellcheck="false" placeholder="Type words, or paste ⠃⠗⠁⠊⠇⠇⠑"></textarea>
@@ -270,8 +306,8 @@ footer { color: var(--muted); font-size: 13px; }
   <section class="panel" aria-label="Sequencer">
     <div class="transport">
       <button class="play" id="play" aria-pressed="false">
-        <svg viewBox="0 0 14 14" aria-hidden="true"><path id="playIcon" d="M2 1l11 6-11 6z"/></svg>
-        <span id="playLabel">Play</span>
+        <svg viewBox="0 0 14 14" aria-hidden="true"><path class="play-icon" d="M2 1l11 6-11 6z"/></svg>
+        <span class="play-label">Play</span>
       </button>
       <div class="ctl">
         <span class="eyebrow">Tempo</span>
@@ -281,6 +317,7 @@ footer { color: var(--muted); font-size: 13px; }
         <span class="eyebrow">Swing</span>
         <div class="row"><input type="range" id="swing" min="50" max="75" step="1"><output id="swingOut"></output></div>
       </div>
+      <button class="btn" id="clear">Clear steps</button>
       <div class="ctl">
         <span class="eyebrow">Reading</span>
         <div class="seg" role="group" aria-label="How a cell is read">
@@ -290,19 +327,109 @@ footer { color: var(--muted); font-size: 13px; }
       </div>
       <label class="check"><input type="checkbox" id="pad"> Fill to whole bars</label>
       <span class="spacer"></span>
-      <button class="btn" id="exportMidi" hidden>Save MIDI</button>
+      <button class="btn export-btn" id="exportMidi" hidden>Save MIDI</button>
+    </div>
+
+    <div class="knobs" aria-label="Mix">
+      <div class="ctl"><span class="eyebrow">Drums volume</span><div class="row"><input type="range" id="volDrumsD" min="0" max="100" step="1" data-vol="drums" aria-label="Drums volume"><output data-volout="drums"></output></div></div>
+      <div class="ctl"><span class="eyebrow">Bassline volume</span><div class="row"><input type="range" id="volBassD" min="0" max="100" step="1" data-vol="bass" aria-label="Bassline volume"><output data-volout="bass"></output></div></div>
+      <label class="check"><input type="checkbox" id="togetherD" data-together> Play drums and bassline together</label>
+    </div>
+
+    <div class="kitbar">
+      <label class="eyebrow" for="kitSelect">Kit</label>
+      <select id="kitSelect"></select>
+      <button class="btn" id="randomize">Randomize sounds</button>
+      <button class="btn" id="saveKit">Save kit</button>
+      <form id="saveForm" class="saveform" hidden>
+        <input id="kitName" type="text" maxlength="40" placeholder="Kit name" aria-label="Kit name" autocomplete="off">
+        <button class="btn primary" type="submit">Save</button>
+        <button class="btn" type="button" id="cancelSave">Cancel</button>
+      </form>
+      <button class="btn danger" id="deleteKit" hidden>Delete kit</button>
+      <span class="note" id="kitHint"></span>
     </div>
 
     <div class="seq" style="margin-top:18px">
       <div class="lanes" id="lanes"></div>
       <div class="scroller"><div class="cells" id="cells"></div></div>
     </div>
-    <p class="note" style="margin-top:8px">Click any dot to toggle it. The braille above rewrites itself to match, so you can also build a beat and read it back as braille.</p>
+    <p class="note" style="margin-top:8px">Click any dot to toggle it. The text box shows the letters your cells spell, so you can build a beat and read it back as words. Use Clear steps to start from an empty bar.</p>
   </section>
 
   <section class="panel key" aria-label="How it reads" id="key"></section>
+  </div>
 
-  <footer>Set in Atkinson Hyperlegible, the typeface designed by the Braille Institute. MIDI uses General MIDI drum notes (kick C1 = 36), so it lands straight on an Ableton Drum Rack.</footer>
+  <div class="view" id="view-bass" hidden>
+    <section class="panel input-row" aria-label="Bassline text">
+      <label class="eyebrow" for="bassInput">Text or braille</label>
+      <textarea id="bassInput" spellcheck="false" placeholder="Type words, or paste ⠁⠉⠊⠙"></textarea>
+      <div class="examples">
+        <span class="eyebrow">Try</span>
+        <button class="chip" data-bex="acid line">acid line</button>
+        <button class="chip" data-bex="squelch">squelch</button>
+        <button class="chip" data-bex="night bus">night bus</button>
+        <button class="chip" data-bex="cut it up">cut it up</button>
+      </div>
+      <div class="braille-out">
+        <div class="line" id="bassBrailleLine" aria-label="Braille output"></div>
+      </div>
+      <p class="note" id="bassSkipNote" hidden></p>
+    </section>
+
+    <section class="panel" aria-label="Bassline sequencer">
+      <div class="transport">
+        <button class="play" id="playBass" aria-pressed="false">
+          <svg viewBox="0 0 14 14" aria-hidden="true"><path class="play-icon" d="M2 1l11 6-11 6z"/></svg>
+          <span class="play-label">Play</span>
+        </button>
+        <div class="ctl">
+          <span class="eyebrow">Tempo</span>
+          <div class="row"><input type="range" id="bpmBass" min="60" max="180" step="1" aria-label="Tempo"><output id="bpmBassOut"></output></div>
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Swing</span>
+          <div class="row"><input type="range" id="swingBass" min="50" max="75" step="1" aria-label="Swing"><output id="swingBassOut"></output></div>
+        </div>
+        <button class="btn" id="clearBass">Clear steps</button>
+        <span class="spacer"></span>
+        <button class="btn export-btn" id="exportBass" hidden>Save MIDI</button>
+      </div>
+
+      <div class="knobs" aria-label="Mix">
+        <div class="ctl"><span class="eyebrow">Drums volume</span><div class="row"><input type="range" id="volDrumsB" min="0" max="100" step="1" data-vol="drums" aria-label="Drums volume"><output data-volout="drums"></output></div></div>
+        <div class="ctl"><span class="eyebrow">Bassline volume</span><div class="row"><input type="range" id="volBassB" min="0" max="100" step="1" data-vol="bass" aria-label="Bassline volume"><output data-volout="bass"></output></div></div>
+        <label class="check"><input type="checkbox" id="togetherB" data-together> Play drums and bassline together</label>
+      </div>
+
+      <div class="kitbar">
+        <label class="eyebrow" for="bassRoot">Key</label>
+        <select id="bassRoot"></select>
+        <select id="bassScale" aria-label="Scale"></select>
+        <select id="bassOct" aria-label="Octave"></select>
+        <div class="seg" role="group" aria-label="Waveform">
+          <button data-wave="sawtooth" aria-pressed="true">Saw</button>
+          <button data-wave="square" aria-pressed="false">Square</button>
+        </div>
+      </div>
+      <div class="knobs">
+        <div class="ctl"><span class="eyebrow">Cutoff</span><div class="row"><input type="range" id="bass_cutoff" min="80" max="3000" step="10" aria-label="Cutoff"><output id="bass_cutoffOut"></output></div></div>
+        <div class="ctl"><span class="eyebrow">Resonance</span><div class="row"><input type="range" id="bass_reso" min="0" max="30" step="0.5" aria-label="Resonance"><output id="bass_resoOut"></output></div></div>
+        <div class="ctl"><span class="eyebrow">Env mod</span><div class="row"><input type="range" id="bass_env" min="0" max="100" step="1" aria-label="Envelope amount"><output id="bass_envOut"></output></div></div>
+        <div class="ctl"><span class="eyebrow">Decay</span><div class="row"><input type="range" id="bass_decay" min="40" max="1200" step="10" aria-label="Decay"><output id="bass_decayOut"></output></div></div>
+      </div>
+
+      <div class="seq" style="margin-top:18px">
+        <div class="lanes" id="bassLanes"></div>
+        <div class="scroller"><div class="cells" id="bassCells"></div></div>
+      </div>
+      <p class="note" style="margin-top:8px">Click a row to set that step's note, click it again for a rest. The bottom rows add accent, slide and octave. The text box shows the letters your notes spell.</p>
+    </section>
+
+    <section class="panel key" aria-label="How the bassline reads" id="bassKey"></section>
+  </div>
+
+  <footer>Set in Atkinson Hyperlegible, the typeface designed by the Braille Institute. With the Opium kit, saved MIDI uses the rack's own pads, so it plays OPIUM DRUMS in Ableton as is. The Synth kit uses General MIDI drum notes. Bassline MIDI writes accents as louder notes and slides as overlapping notes, so a mono synth with glide slides like a 303.</footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -345,8 +472,8 @@ footer { color: var(--muted); font-size: 13px; }
     return { cells, skipped: [...skipped] };
   }
 
-  // ---------- Drum voices ----------
-  const VOICES = {
+  // ---------- Drum kits ----------
+  const SYNTH_VOICES = {
     kick:   { name: 'Kick',       note: 36, color: 'kick',  vel: 112 },
     snare:  { name: 'Snare',      note: 38, color: 'snare', vel: 104 },
     clap:   { name: 'Clap',       note: 39, color: 'snare', vel: 100 },
@@ -356,22 +483,77 @@ footer { color: var(--muted); font-size: 13px; }
     rim:    { name: 'Rim',        note: 37, color: 'perc',  vel: 96 },
     tom:    { name: 'Low tom',    note: 45, color: 'perc',  vel: 100 },
   };
+  for (const v of Object.values(SYNTH_VOICES)) v.label = v.name;
+
+  // All 16 pads of the OPIUM DRUMS rack; the first six make up the starting kit.
+  // MIDI export uses each pad's own note, so it plays the rack directly.
+  const OPIUM_PADS = [
+    [36, 'Kick', 'kick'], [42, 'Snare', 'snare'], [44, 'Hat', 'hat'],
+    [47, 'Open hat', 'hat'], [41, 'Rim', 'perc'], [43, 'Perc', 'perc'],
+    [37, 'Kick 2', 'kick'], [38, 'Kick 3', 'kick'], [39, 'Kick 4', 'kick'], [40, 'Rim 2', 'perc'],
+    [45, 'Hat tick', 'hat'], [46, 'Hat 2', 'hat'], [49, 'Cabasa', 'hat'],
+    [48, 'Water perc', 'perc'], [50, 'Wood', 'perc'], [51, 'Lazer', 'perc'],
+  ];
+  const OPIUM_VOICES = Object.fromEntries(OPIUM_PADS.map(([note, label, color]) =>
+    ['p' + note, { name: `${label} (Opium)`, label, note, color, vel: 100, file: `sounds/opium/${note}.wav` }]));
+
+  const KITS = {
+    opium: { voices: OPIUM_VOICES, defaults: { grid: ['p44','p42','p36','p41'], chord: ['p36','p42','p44','p47','p41','p43','p44','p43'] } },
+    synth: { voices: SYNTH_VOICES, defaults: { grid: ['chat','snare','kick','rim'], chord: ['kick','snare','chat','ohat','clap','rim','tom','shaker'] } },
+  };
 
   // In "grid" reading each lane is a row of the cell: dots[0] is the left column (1st 16th), dots[1] the right (2nd 16th).
   // In "chord" reading the whole cell is one 16th and each dot number is its own lane.
   const MODES = {
-    grid:  { spc: 2, lanes: [[1,4],[2,5],[3,6],[7,8]], optional: [3], voices: ['chat','snare','kick','rim'] },
-    chord: { spc: 1, lanes: [[1],[2],[3],[4],[5],[6],[7],[8]], optional: [6,7], voices: ['kick','snare','chat','ohat','clap','rim','tom','shaker'] },
+    grid:  { spc: 2, lanes: [[1,4],[2,5],[3,6],[7,8]], optional: [3] },
+    chord: { spc: 1, lanes: [[1],[2],[3],[4],[5],[6],[7],[8]], optional: [6,7] },
+  };
+
+  // Bassline scales (semitones from the root)
+  const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const SCALES = {
+    minor:     { name: 'Minor',            steps: [0,2,3,5,7,8,10] },
+    dorian:    { name: 'Dorian',           steps: [0,2,3,5,7,9,10] },
+    phrygian:  { name: 'Phrygian',         steps: [0,1,3,5,7,8,10] },
+    harmonic:  { name: 'Harmonic minor',   steps: [0,2,3,5,7,8,11] },
+    pentatonic:{ name: 'Minor pentatonic', steps: [0,3,5,7,10] },
+    major:     { name: 'Major',            steps: [0,2,4,5,7,9,11] },
   };
 
   // ---------- State ----------
-  const DEFAULTS = { text: 'blue era', mode: 'grid', bpm: 132, swing: 58, pad: true, voices: { grid: MODES.grid.voices.slice(), chord: MODES.chord.voices.slice() } };
+  // state.kit is 'opium', 'synth' or the id of a saved kit (saved kits use Opium sounds).
+  // Picking a kit loads its sounds into state.voices; changing a row afterwards never alters the saved kit.
+  const DEFAULTS = {
+    text: 'blue era', kit: 'opium', mode: 'grid', bpm: 132, swing: 58, pad: true,
+    voices: structuredClone(KITS.opium.defaults), userKits: [],
+    view: 'drums', together: true, vol: { drums: 80, bass: 75 },
+    bass: { text: 'acid line', root: 9, scale: 'minor', oct: 1, wave: 'sawtooth', cutoff: 420, reso: 16, env: 65, decay: 300 },
+  };
+  function cleanVoices(v, base) {
+    const { defaults, voices: pool } = KITS[base], out = {};
+    for (const m of ['grid', 'chord']) out[m] = defaults[m].map((def, i) => (v && v[m] && pool[v[m][i]] ? v[m][i] : def));
+    return out;
+  }
   let state = structuredClone(DEFAULTS);
   try {
-    const saved = JSON.parse(localStorage.getItem('braille-beats') || 'null');
-    if (saved && typeof saved === 'object') state = { ...state, ...saved, voices: { ...state.voices, ...(saved.voices || {}) } };
+    const saved = JSON.parse(localStorage.getItem('braille-beats-v4') || 'null');
+    if (saved && typeof saved === 'object') state = { ...state, ...saved };
   } catch (e) {}
-  const persist = () => { try { localStorage.setItem('braille-beats', JSON.stringify(state)); } catch (e) {} };
+  state.userKits = (Array.isArray(state.userKits) ? state.userKits : [])
+    .filter(k => k && k.id && k.name)
+    .map(k => ({ id: String(k.id), name: String(k.name).slice(0, 40), voices: cleanVoices(k.voices, 'opium') }));
+  const userKit = () => state.userKits.find(k => k.id === state.kit);
+  if (state.kit !== 'opium' && state.kit !== 'synth' && !userKit()) state.kit = 'opium';
+  const kitBase = () => (state.kit === 'synth' ? 'synth' : 'opium');
+  state.voices = cleanVoices(state.voices, kitBase());
+  state.bass = { ...DEFAULTS.bass, ...(state.bass && typeof state.bass === 'object' ? state.bass : {}) };
+  if (!SCALES[state.bass.scale]) state.bass.scale = 'minor';
+  state.vol = { ...DEFAULTS.vol, ...(state.vol && typeof state.vol === 'object' ? state.vol : {}) };
+  if (location.hash === '#bassline') state.view = 'bass';
+  else if (location.hash === '#drums' || state.view !== 'bass') state.view = 'drums';
+  const persist = () => { try { localStorage.setItem('braille-beats-v4', JSON.stringify(state)); } catch (e) {} };
+  const kitVoices = () => KITS[kitBase()].voices;
+  const laneVoices = () => state.voices[state.mode];
 
   let cells = [];
   let skipped = [];
@@ -386,6 +568,7 @@ footer { color: var(--muted); font-size: 13px; }
   }
   function cellCount() {
     const spc = MODES[state.mode].spc, n = Math.max(cells.length, 1);
+    if (!cells.length) return 16 / spc; // an empty pattern always offers one blank bar to click into
     if (!state.pad) return n;
     const perBar = 16 / spc;
     return Math.ceil(n / perBar) * perBar;
@@ -398,7 +581,7 @@ footer { color: var(--muted); font-size: 13px; }
     const m = MODES[state.mode], c = Math.floor(step / m.spc), k = step % m.spc, mask = maskAt(c);
     const out = [];
     for (const l of visibleLanes()) {
-      if (mask & (1 << (l.dots[k] - 1))) out.push(state.voices[state.mode][l.i]);
+      if (mask & (1 << (l.dots[k] - 1))) out.push(laneVoices()[l.i]);
     }
     return [...new Set(out)];
   }
@@ -419,12 +602,22 @@ footer { color: var(--muted); font-size: 13px; }
     const hs = document.createElement('div'); hs.className = 'headspace eyebrow'; hs.textContent = state.mode === 'grid' ? 'Row → sound' : 'Dot → sound';
     lanesEl.append(hs);
     for (const l of lanes) {
-      const v = state.voices[state.mode][l.i];
+      const v = laneVoices()[l.i];
       const row = document.createElement('div'); row.className = 'lane';
-      row.style.setProperty('--c', `var(--${VOICES[v].color})`);
-      const sel = document.createElement('select'); sel.id = `voice-${state.mode}-${l.i}`; sel.dataset.lane = l.i;
+      row.style.setProperty('--c', `var(--${kitVoices()[v].color})`);
+      const sel = document.createElement('select'); sel.id = `voice-${state.kit}-${state.mode}-${l.i}`; sel.dataset.lane = l.i;
       sel.setAttribute('aria-label', `Sound for ${state.mode === 'grid' ? 'row' : 'dot'} ${l.dots.join(' and ')}`);
-      for (const [key, vv] of Object.entries(VOICES)) { const o = new Option(vv.name, key); o.selected = key === v; sel.add(o); }
+      const entries = Object.entries(kitVoices());
+      const addOptions = (parent, list) => { for (const [key, vv] of list) { const o = new Option(vv.name, key); o.selected = key === v; parent.append(o); } };
+      if (kitBase() === 'opium') {
+        // Starting six on top, the rest of the rack grouped below
+        const main = document.createElement('optgroup'); main.label = 'Opium kit';
+        const more = document.createElement('optgroup'); more.label = 'More from the rack';
+        addOptions(main, entries.slice(0, 6)); addOptions(more, entries.slice(6));
+        sel.append(main, more);
+      } else {
+        addOptions(sel, entries);
+      }
       row.innerHTML = `<span class="sw"></span><span class="dots">${l.dots.join('·')}</span>`;
       row.append(sel);
       lanesEl.append(row);
@@ -444,13 +637,13 @@ footer { color: var(--muted); font-size: 13px; }
       for (let k = 0; k < m.spc; k++) {
         const col = document.createElement('div'); col.className = 'col';
         for (const l of lanes) {
-          const v = state.voices[state.mode][l.i];
+          const v = kitVoices()[laneVoices()[l.i]];
           const d = document.createElement('button');
           d.className = 'dot'; d.dataset.cell = c; d.dataset.lane = l.i; d.dataset.k = k;
-          d.style.setProperty('--c', `var(--${VOICES[v].color})`);
+          d.style.setProperty('--c', `var(--${v.color})`);
           const on = !!(mask & (1 << (l.dots[k] - 1)));
           if (on) d.classList.add('on');
-          d.setAttribute('aria-pressed', on); d.setAttribute('aria-label', `Step ${firstStep + k + 1}, ${VOICES[v].name}`);
+          d.setAttribute('aria-pressed', on); d.setAttribute('aria-label', `Step ${firstStep + k + 1}, ${v.label}`);
           col.append(d);
         }
         body.append(col); colEls.push(col);
@@ -461,7 +654,7 @@ footer { color: var(--muted); font-size: 13px; }
   }
 
   function renderKey() {
-    const v = state.voices[state.mode], name = k => VOICES[k].name, col = k => `var(--${VOICES[k].color})`;
+    const v = laneVoices(), name = k => kitVoices()[k].label, col = k => `var(--${kitVoices()[k].color})`;
     const show8 = eightDotUsed();
     const dotSpan = (d, voiceKey, opt) => `<span style="--c:${col(voiceKey)}" class="${opt ? 'opt' : ''}">${d}</span>`;
     let mini, text;
@@ -484,34 +677,80 @@ footer { color: var(--muted); font-size: 13px; }
   function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
   function renderControls() {
-    $('bpm').value = state.bpm; $('bpmOut').textContent = state.bpm + ' bpm';
-    $('swing').value = state.swing; $('swingOut').textContent = state.swing + '%';
+    syncTempoUI(); syncMixUI();
     $('pad').checked = state.pad;
-    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
+    document.querySelectorAll('.seg button[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
+  }
+
+  function renderKitBar() {
+    const sel = $('kitSelect');
+    sel.replaceChildren(new Option('Opium', 'opium'), new Option('Synth', 'synth'));
+    if (state.userKits.length) {
+      const g = document.createElement('optgroup'); g.label = 'Your kits';
+      for (const k of state.userKits) g.append(new Option(k.name, k.id));
+      sel.append(g);
+    }
+    sel.value = state.kit;
+    const formOpen = !$('saveForm').hidden;
+    $('saveKit').hidden = formOpen || kitBase() !== 'opium';
+    $('deleteKit').hidden = formOpen || !userKit();
+    $('kitHint').textContent = kitBase() === 'opium' ? '' : 'Saved kits use Opium sounds. Switch to Opium to save one.';
   }
 
   function rebuildFromText() {
     ({ cells, skipped } = textToCells(state.text));
     renderAll();
   }
-  function renderAll() { renderBraille(); renderGrid(); renderKey(); renderControls(); persist(); }
+  function renderAll() { renderBraille(); renderGrid(); renderKey(); renderControls(); renderKitBar(); persist(); }
 
   // ---------- Audio ----------
-  let ctx = null, master = null, noiseBuf = null;
+  // Signal flow: drums → drumBus ┐
+  //              bass  → bassBus ┴→ master → compressor → out
+  let ctx = null, master = null, drumBus = null, bassBus = null, noiseBuf = null;
+  const volGain = v => (v / 100) ** 2 * 1.5;
+  function applyVolumes() {
+    if (!ctx) return;
+    drumBus.gain.setTargetAtTime(volGain(state.vol.drums), ctx.currentTime, 0.02);
+    bassBus.gain.setTargetAtTime(volGain(state.vol.bass), ctx.currentTime, 0.02);
+  }
   function ensureAudio() {
     if (ctx) return ctx;
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 4;
     master = ctx.createGain(); master.gain.value = 0.8; master.connect(comp); comp.connect(ctx.destination);
+    drumBus = ctx.createGain(); drumBus.gain.value = volGain(state.vol.drums); drumBus.connect(master);
+    bassBus = ctx.createGain(); bassBus.gain.value = volGain(state.vol.bass); bassBus.connect(master);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    decodeSamples();
     return ctx;
+  }
+
+  // Sample kit: fetch the files up front, decode once the audio context exists (it needs a click first)
+  const rawSamples = {}, buffers = {};
+  for (const [k, v] of Object.entries(OPIUM_VOICES)) {
+    rawSamples[k] = fetch(v.file).then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
+  }
+  let decoding = null;
+  function decodeSamples() {
+    if (!decoding) decoding = Promise.all(Object.entries(rawSamples).map(async ([k, p]) => {
+      const ab = await p; if (!ab) return;
+      try { buffers[k] = await ctx.decodeAudioData(ab); } catch (e) {}
+    }));
+    return decoding;
+  }
+  function playVoice(key, t) {
+    if (SYNTH[key]) return SYNTH[key](t);
+    const b = buffers[key]; if (!b) return;
+    const s = ctx.createBufferSource(); s.buffer = b;
+    const g = ctx.createGain(); g.gain.value = 0.5;
+    s.connect(g); g.connect(drumBus); s.start(t);
   }
   function env(t, peak, decay, attack = 0.001) {
     const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(peak, t + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
-    g.connect(master); return g;
+    g.connect(drumBus); return g;
   }
   function noise(t, dur, filterType, freq, q, dest) {
     const s = ctx.createBufferSource(); s.buffer = noiseBuf;
@@ -538,68 +777,85 @@ footer { color: var(--muted); font-size: 13px; }
   };
 
   // ---------- Sequencer ----------
-  let playing = false, step = 0, nextTime = 0, timer = null, raf = null; const queue = []; let lit = -1;
+  // One shared 16th-note clock. Drums and bassline each loop over their own length, so they stay in sync.
+  let playing = false, tick = 0, nextTime = 0, timer = null, raf = null; const queue = []; let lit = -1, bassLit = -1;
   const sixteenth = () => 60 / state.bpm / 4;
   const swingOffset = s => (s % 2 ? (state.swing / 100 - 0.5) * 2 * sixteenth() : 0);
+  const partOn = part => state.together || state.view === part;
 
   function scheduler() {
-    const total = totalSteps();
-    if (step >= total) step = 0;
     while (nextTime < ctx.currentTime + 0.12) {
-      const t = nextTime + swingOffset(step);
-      for (const v of hitsAt(step)) SYNTH[v](t);
-      queue.push({ s: step, t });
-      nextTime += sixteenth();
-      step = (step + 1) % totalSteps();
+      const t = nextTime + swingOffset(tick);
+      const ds = tick % totalSteps(), bs = tick % bassTotalSteps();
+      if (partOn('drums')) for (const v of hitsAt(ds)) playVoice(v, t);
+      if (partOn('bass')) scheduleBass(bs, t); else bassRest(t);
+      queue.push({ ds, bs, t });
+      nextTime += sixteenth(); tick++;
     }
   }
   function draw() {
     while (queue.length && queue[0].t <= ctx.currentTime) {
-      const { s } = queue.shift();
+      const { ds, bs } = queue.shift();
       if (colEls[lit]) colEls[lit].classList.remove('now');
-      lit = s; if (colEls[lit]) colEls[lit].classList.add('now');
+      lit = ds; if (colEls[lit]) colEls[lit].classList.add('now');
+      if (bassColEls[bassLit]) bassColEls[bassLit].classList.remove('now');
+      bassLit = bs; if (bassColEls[bassLit]) bassColEls[bassLit].classList.add('now');
     }
     raf = requestAnimationFrame(draw);
   }
-  function start() {
+  async function start() {
     ensureAudio(); ctx.resume();
-    playing = true; step = 0; queue.length = 0; nextTime = ctx.currentTime + 0.05;
+    playing = true; setPlayUI();
+    await decodeSamples();
+    if (!playing) return;
+    if (partOn('drums') && kitBase() === 'opium' && !Object.keys(buffers).length) toast('Couldn’t load the Opium Drums samples. Try the Synth kit.');
+    tick = 0; bassPrev = null; queue.length = 0; nextTime = ctx.currentTime + 0.05;
     timer = setInterval(scheduler, 25); scheduler(); draw();
-    setPlayUI();
   }
   function stop() {
     playing = false; clearInterval(timer); cancelAnimationFrame(raf); queue.length = 0;
     if (colEls[lit]) colEls[lit].classList.remove('now'); lit = -1;
+    if (bassColEls[bassLit]) bassColEls[bassLit].classList.remove('now'); bassLit = -1;
+    if (bassVoice) { bassVoice.vca.gain.cancelScheduledValues(ctx.currentTime); bassVoice.vca.gain.setTargetAtTime(0, ctx.currentTime, 0.01); }
+    bassPrev = null;
     setPlayUI();
   }
   function setPlayUI() {
-    $('play').setAttribute('aria-pressed', playing);
-    $('playLabel').textContent = playing ? 'Stop' : 'Play';
-    $('playIcon').setAttribute('d', playing ? 'M2 2h10v10H2z' : 'M2 1l11 6-11 6z');
+    document.querySelectorAll('.play').forEach(b => {
+      b.setAttribute('aria-pressed', playing);
+      b.querySelector('.play-label').textContent = playing ? 'Stop' : 'Play';
+      b.querySelector('.play-icon').setAttribute('d', playing ? 'M2 2h10v10H2z' : 'M2 1l11 6-11 6z');
+    });
   }
 
   // ---------- MIDI + zip ----------
   function vlq(n) { const b = [n & 0x7f]; while ((n >>= 7)) b.unshift((n & 0x7f) | 0x80); return b; }
+  const PPQ = 96, T16 = PPQ / 4;
+  const swingTicks = s => (s % 2 ? Math.round((state.swing / 100 - 0.5) * 2 * T16) : 0);
   function buildMidi() {
-    const PPQ = 96, T16 = PPQ / 4, total = totalSteps();
+    const total = totalSteps();
     const ev = []; const seen = new Set();
     for (let s = 0; s < total; s++) {
-      const tick = s * T16 + (s % 2 ? Math.round((state.swing / 100 - 0.5) * 2 * T16) : 0);
+      const tick = s * T16 + swingTicks(s);
       for (const v of hitsAt(s)) {
-        const { note, vel } = VOICES[v]; const key = tick + ':' + note;
+        const { note, vel } = kitVoices()[v]; const key = tick + ':' + note;
         if (seen.has(key)) continue; seen.add(key);
         ev.push({ tick, data: [0x99, note, vel], off: 0 }, { tick: tick + 12, data: [0x89, note, 0], off: 1 });
       }
     }
+    return smf(ev, total * T16, 'Braille Beats ' + cells.map(c => c.src || ' ').join('').trim());
+  }
+  // Single-track MIDI file (format 0) with tempo and 4/4 time signature
+  function smf(ev, endTick, title) {
     ev.sort((a, b) => a.tick - b.tick || b.off - a.off);
-    const name = Array.from('Braille Beats ' + cells.map(c => c.src || ' ').join('').trim()).map(c => c.charCodeAt(0) & 0x7f);
+    const name = Array.from(title).map(c => c.charCodeAt(0) & 0x7f);
     const usq = Math.round(60e6 / state.bpm);
     const trk = [0x00, 0xFF, 0x03, ...vlq(name.length), ...name,
                  0x00, 0xFF, 0x51, 0x03, (usq >> 16) & 0xff, (usq >> 8) & 0xff, usq & 0xff,
                  0x00, 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08];
     let last = 0;
     for (const e of ev) { trk.push(...vlq(e.tick - last), ...e.data); last = e.tick; }
-    trk.push(...vlq(Math.max(0, total * T16 - last)), 0xFF, 0x2F, 0x00);
+    trk.push(...vlq(Math.max(0, endTick - last)), 0xFF, 0x2F, 0x00);
     const len = trk.length;
     return new Uint8Array([0x4D,0x54,0x68,0x64, 0,0,0,6, 0,0, 0,1, (PPQ >> 8) & 0xff, PPQ & 0xff,
       0x4D,0x54,0x72,0x6B, (len >>> 24) & 0xff, (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff, ...trk]);
@@ -616,21 +872,22 @@ footer { color: var(--muted); font-size: 13px; }
     const end = [...le(0x06054b50, 4), ...le(0, 2), ...le(0, 2), ...le(1, 2), ...le(1, 2), ...le(central.length, 4), ...le(cdOffset, 4), ...le(0, 2)];
     return new Blob([new Uint8Array(local), data, new Uint8Array(central), new Uint8Array(end)]);
   }
-  function slug() { return (cells.map(c => c.src || ' ').join('').trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'pattern').slice(0, 40); }
+  function slug(list) { return (list.map(c => c.src || ' ').join('').trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'pattern').slice(0, 40); }
 
   // Inside a Claude viewer, files go through the downloads capability (as a .zip); on a plain website, a normal .mid download.
   let downloads = null;
   const inViewer = !!(window.claude && typeof window.claude.use === 'function');
+  const exportBtns = () => document.querySelectorAll('.export-btn');
   if (inViewer) {
-    $('exportMidi').textContent = 'Save MIDI (.zip)';
-    window.claude.use('downloads').then(d => { downloads = d; $('exportMidi').hidden = !d; }).catch(() => {});
+    exportBtns().forEach(b => (b.textContent = 'Save MIDI (.zip)'));
+    window.claude.use('downloads').then(d => { downloads = d; exportBtns().forEach(b => (b.hidden = !d)); }).catch(() => {});
   } else {
-    $('exportMidi').hidden = false;
+    exportBtns().forEach(b => (b.hidden = false));
   }
-  async function exportMidi() {
-    const base = `braille-beat-${slug()}-${state.bpm}bpm`;
+  const exportMidi = () => saveMidi(`braille-beat-${slug(cells)}-${state.bpm}bpm`, buildMidi());
+  async function saveMidi(base, bytes) {
     if (!inViewer) {
-      const url = URL.createObjectURL(new Blob([buildMidi()], { type: 'audio/midi' }));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
       const a = document.createElement('a'); a.href = url; a.download = base + '.mid';
       document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -639,14 +896,257 @@ footer { color: var(--muted); font-size: 13px; }
     }
     if (!downloads) return;
     try {
-      await downloads.save({ filename: base + '.zip', data: zipOne(base + '.mid', buildMidi()) });
+      await downloads.save({ filename: base + '.zip', data: zipOne(base + '.mid', bytes) });
       toast('MIDI saved');
     } catch (e) {
       if (e && e.code === 'declined') return;
-      if (e && (e.code === 'unavailable' || e.code === 'not_granted')) { $('exportMidi').hidden = true; toast('Saving files isn’t available in this view'); return; }
+      if (e && (e.code === 'unavailable' || e.code === 'not_granted')) { exportBtns().forEach(b => (b.hidden = true)); toast('Saving files isn’t available in this view'); return; }
       toast('Couldn’t save the MIDI file. Try again in a moment.');
     }
   }
+
+  // ---------- Bassline ----------
+  // One cell = one 16th. The left column (dots 1·2·3, worth 1·2·4) picks scale degree 1–7; no left dot is a rest.
+  // The right column shapes the note: dot 4 accent, dot 5 slide into the next note, dot 6 octave up. Dot 7 (8-dot braille) octave down.
+  const bassInput = $('bassInput'), bassCellsEl = $('bassCells'), bassLanesEl = $('bassLanes');
+  const B_ACCENT = 8, B_SLIDE = 16, B_UP = 32, B_DOWN = 64;
+  let bassCells = [], bassSkipped = [], bassColEls = [], bassVoice = null, bassPrev = null;
+
+  function bassTotalSteps() {
+    const n = bassCells.length;
+    if (!n) return 16;
+    return state.pad ? Math.ceil(n / 16) * 16 : n;
+  }
+  const degreeOf = mask => (mask & 1) + (mask & 2) + (mask & 4);
+  function degreeMidi(deg) {
+    const sc = SCALES[state.bass.scale].steps, i = deg - 1;
+    return 12 * (state.bass.oct + 2) + state.bass.root + sc[i % sc.length] + 12 * Math.floor(i / sc.length);
+  }
+  const midiName = m => NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 2);
+  function bassNoteAt(s) {
+    const mask = bassCells[s] ? bassCells[s].mask : 0, deg = degreeOf(mask);
+    if (!deg) return null;
+    return { midi: degreeMidi(deg) + (mask & B_UP ? 12 : 0) - (mask & B_DOWN ? 12 : 0), accent: !!(mask & B_ACCENT), slide: !!(mask & B_SLIDE) };
+  }
+
+  // 303-style mono voice: one oscillator → resonant lowpass → amp, kept running and re-triggered per note
+  function ensureBassVoice() {
+    if (bassVoice) return bassVoice;
+    const osc = ctx.createOscillator(), filter = ctx.createBiquadFilter(), vca = ctx.createGain();
+    osc.type = state.bass.wave;
+    filter.type = 'lowpass'; filter.frequency.value = state.bass.cutoff; filter.Q.value = state.bass.reso;
+    vca.gain.value = 0;
+    osc.connect(filter); filter.connect(vca); vca.connect(bassBus); osc.start();
+    return (bassVoice = { osc, filter, vca });
+  }
+  const hzOf = midi => 440 * 2 ** ((midi - 69) / 12);
+  function triggerBass(v, n, t) {
+    const B = state.bass, f = v.filter.frequency, g = v.vca.gain;
+    v.osc.frequency.cancelScheduledValues(t); v.osc.frequency.setValueAtTime(hzOf(n.midi), t);
+    g.cancelScheduledValues(t); g.setTargetAtTime(n.accent ? 0.42 : 0.26, t, 0.003);
+    const peak = Math.min(16000, B.cutoff + (B.env / 100) * 5000 * (n.accent ? 1.5 : 1));
+    f.cancelScheduledValues(t); f.setValueAtTime(peak, t);
+    f.setTargetAtTime(B.cutoff, t + 0.002, (B.decay / 1000) * (n.accent ? 0.5 : 1) / 3);
+  }
+  function scheduleBass(s, t) {
+    const v = ensureBassVoice(), n = bassNoteAt(s), prev = bassPrev;
+    bassPrev = n;
+    if (!n) { if (prev && prev.slide) v.vca.gain.setTargetAtTime(0, t, 0.01); return; }
+    if (prev && prev.slide) {
+      // Slide: glide the pitch into this note without a new envelope
+      v.osc.frequency.cancelScheduledValues(t); v.osc.frequency.setTargetAtTime(hzOf(n.midi), t, 0.03);
+    } else {
+      triggerBass(v, n, t);
+    }
+    const next = bassNoteAt((s + 1) % bassTotalSteps());
+    if (!(n.slide && next)) v.vca.gain.setTargetAtTime(0, t + sixteenth() * 0.55, 0.012);
+  }
+  function bassRest(t) {
+    if (bassVoice && bassPrev) bassVoice.vca.gain.setTargetAtTime(0, t, 0.01);
+    bassPrev = null;
+  }
+  function auditionBass(n) {
+    ensureAudio(); ctx.resume();
+    if (playing) return;
+    const v = ensureBassVoice(), t = ctx.currentTime + 0.01;
+    triggerBass(v, n, t);
+    v.vca.gain.setTargetAtTime(0, t + 0.16, 0.015);
+  }
+
+  function buildBassMidi() {
+    const total = bassTotalSteps(), end = total * T16, ev = [];
+    for (let s = 0; s < total; s++) {
+      const n = bassNoteAt(s); if (!n) continue;
+      const tick = s * T16 + swingTicks(s), next = bassNoteAt((s + 1) % total);
+      // Slides overlap into the next note (legato); the same pitch just ties up to it
+      let len = n.slide && next ? (next.midi === n.midi ? T16 : T16 + 6) : 13;
+      len = Math.max(1, Math.min(len, end - tick));
+      ev.push({ tick, data: [0x90, n.midi, n.accent ? 120 : 90], off: 0 }, { tick: tick + len, data: [0x80, n.midi, 0], off: 1 });
+    }
+    return smf(ev, end, 'Braille Bass ' + bassCells.map(c => c.src || ' ').join('').trim());
+  }
+  const exportBass = () => saveMidi(
+    `braille-bass-${slug(bassCells)}-${NOTE_NAMES[state.bass.root].replace('#', 's')}-${state.bass.scale}-${state.bpm}bpm`,
+    buildBassMidi());
+
+  function bassRows() {
+    const rows = [];
+    for (let d = 7; d >= 1; d--) rows.push({ deg: d, color: 'accent' });
+    rows.push({ bit: B_ACCENT, label: 'Accent', color: 'kick' }, { bit: B_SLIDE, label: 'Slide', color: 'hat' }, { bit: B_UP, label: 'Octave ↑', color: 'perc' });
+    if (bassCells.some(c => c.mask & 0xC0)) rows.push({ bit: B_DOWN, label: 'Octave ↓', color: 'snare' });
+    return rows;
+  }
+  function renderBassGrid() {
+    const rows = bassRows(), n = bassTotalSteps();
+    bassLanesEl.innerHTML = '';
+    const hs = document.createElement('div'); hs.className = 'headspace eyebrow'; hs.textContent = 'Degree · note';
+    bassLanesEl.append(hs);
+    for (const r of rows) {
+      const row = document.createElement('div'); row.className = 'lane';
+      row.style.setProperty('--c', `var(--${r.color})`);
+      const label = r.deg ? `${r.deg} · ${midiName(degreeMidi(r.deg))}` : r.label;
+      row.innerHTML = `<span class="sw"></span><span class="lane-label">${label}</span>`;
+      bassLanesEl.append(row);
+    }
+    const frag = document.createDocumentFragment(); bassColEls = [];
+    for (let s = 0; s < n; s++) {
+      const cell = bassCells[s], mask = cell ? cell.mask : 0, deg = degreeOf(mask);
+      const g = document.createElement('div'); g.className = 'cell';
+      if (s % 16 === 0 && s > 0) g.classList.add('bar');
+      if (s >= bassCells.length) g.classList.add('pad');
+      const head = document.createElement('div'); head.className = 'head';
+      if (s % 16 === 0) head.innerHTML = `<span class="barno">bar ${s / 16 + 1}</span>`;
+      head.insertAdjacentHTML('beforeend', `<span class="src">${cell ? escapeHtml(cell.src || (mask ? '' : '␣')) : ''}</span><span class="uni">${glyph(mask)}</span>`);
+      const body = document.createElement('div'); body.className = 'body';
+      const col = document.createElement('div'); col.className = 'col';
+      for (const r of rows) {
+        const d = document.createElement('button');
+        d.className = 'dot' + (r.deg ? ' note' : ''); d.dataset.step = s;
+        if (r.deg) d.dataset.deg = r.deg; else d.dataset.bit = r.bit;
+        d.style.setProperty('--c', `var(--${r.color})`);
+        const on = r.deg ? deg === r.deg : !!(mask & r.bit);
+        if (on) d.classList.add('on');
+        if (!r.deg && !deg) d.classList.add('idle'); // accent/slide/octave on a rest do nothing
+        d.setAttribute('aria-pressed', on);
+        d.setAttribute('aria-label', `Step ${s + 1}, ${r.deg ? 'degree ' + r.deg : r.label}`);
+        col.append(d);
+      }
+      body.append(col); bassColEls.push(col);
+      g.append(head, body); frag.append(g);
+    }
+    bassCellsEl.replaceChildren(frag);
+  }
+  function describeBass(mask) {
+    const deg = degreeOf(mask);
+    if (!deg) return 'rest';
+    const midi = degreeMidi(deg) + (mask & B_UP ? 12 : 0) - (mask & B_DOWN ? 12 : 0);
+    const parts = [`${['root', '2nd', '3rd', '4th', '5th', '6th', '7th'][deg - 1]} (${midiName(midi)})`];
+    if (mask & B_ACCENT) parts.push('accent');
+    if (mask & B_SLIDE) parts.push('slide');
+    if (mask & B_UP) parts.push('octave up');
+    return parts.join(', ');
+  }
+  function renderBassKey() {
+    const mk = (t, c) => `<span style="--c:var(--${c})">${t}</span>`;
+    const mini = [mk('1', 'accent'), mk('A', 'kick'), mk('2', 'accent'), mk('S', 'hat'), mk('4', 'accent'), mk('↑', 'perc')].join('');
+    const examples = ['a', 'c', 'e', 'b', 'k', 'u'].map(l => `<li>${l} → ${describeBass(maskOf(LETTERS[l]))}</li>`).join('');
+    $('bassKey').innerHTML = `<div class="mini" aria-hidden="true">${mini}</div><div>
+      <h2>Each cell is one 16th note</h2>
+      <p>The left column picks the note. Dots 1, 2 and 3 count 1, 2 and 4, and their total is the scale degree, 1 to 7. A cell with no dot on the left is a rest. The right column shapes the note: dot 4 accents it, dot 5 slides into the next note, dot 6 lifts it an octave. Sixteen cells fill a bar, always in ${NOTE_NAMES[state.bass.root]} ${SCALES[state.bass.scale].name.toLowerCase()}.</p>
+      <ul class="mono">${examples}</ul>
+      <p class="note">In 8-dot braille, dot 7 drops the note an octave.</p></div>`;
+  }
+  function renderBassControls() {
+    $('bassRoot').value = String(state.bass.root);
+    $('bassScale').value = state.bass.scale;
+    $('bassOct').value = String(state.bass.oct);
+    document.querySelectorAll('.seg button[data-wave]').forEach(b => b.setAttribute('aria-pressed', b.dataset.wave === state.bass.wave));
+    for (const k of Object.keys(KNOB_FMT)) { $('bass_' + k).value = state.bass[k]; $('bass_' + k + 'Out').textContent = KNOB_FMT[k](state.bass[k]); }
+    syncTempoUI(); syncMixUI();
+  }
+  const KNOB_FMT = { cutoff: v => v + ' Hz', reso: v => String(v), env: v => v + '%', decay: v => v + ' ms' };
+  function renderBass() {
+    $('bassBrailleLine').textContent = bassCells.map(c => glyph(c.mask)).join('') || '⠀';
+    $('bassSkipNote').hidden = bassSkipped.length === 0;
+    if (bassSkipped.length) $('bassSkipNote').textContent = 'Skipped (no braille mapping): ' + bassSkipped.join(' ');
+    renderBassGrid(); renderBassKey(); renderBassControls(); persist();
+  }
+  function rebuildBass() {
+    ({ cells: bassCells, skipped: bassSkipped } = textToCells(state.bass.text));
+    renderBass();
+  }
+
+  function syncTempoUI() {
+    for (const id of ['bpm', 'bpmBass']) $(id).value = state.bpm;
+    for (const id of ['bpmOut', 'bpmBassOut']) $(id).textContent = state.bpm + ' bpm';
+    for (const id of ['swing', 'swingBass']) $(id).value = state.swing;
+    for (const id of ['swingOut', 'swingBassOut']) $(id).textContent = state.swing + '%';
+  }
+  // The mix row appears on both pages; every copy shows the same values
+  function syncMixUI() {
+    document.querySelectorAll('[data-vol]').forEach(el => (el.value = state.vol[el.dataset.vol]));
+    document.querySelectorAll('[data-volout]').forEach(el => (el.textContent = state.vol[el.dataset.volout] + '%'));
+    document.querySelectorAll('[data-together]').forEach(el => (el.checked = state.together));
+  }
+  function showView(v) {
+    state.view = v;
+    $('view-drums').hidden = v !== 'drums';
+    $('view-bass').hidden = v !== 'bass';
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === v));
+    persist();
+  }
+
+  NOTE_NAMES.forEach((n, i) => $('bassRoot').add(new Option(n, i)));
+  for (const [k, s] of Object.entries(SCALES)) $('bassScale').add(new Option(s.name, k));
+  [['Low', 0], ['Mid', 1], ['High', 2]].forEach(([n, o]) => $('bassOct').add(new Option(`${n} octave`, o)));
+
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+  bassInput.addEventListener('input', () => { state.bass.text = bassInput.value; rebuildBass(); });
+  document.querySelectorAll('.chip[data-bex]').forEach(b => b.addEventListener('click', () => { bassInput.value = state.bass.text = b.dataset.bex; rebuildBass(); }));
+  $('clearBass').addEventListener('click', () => {
+    state.bass.text = bassInput.value = '';
+    bassCells = []; bassSkipped = [];
+    renderBass(); toast('Cleared. Click the grid to write a line');
+  });
+  document.querySelectorAll('[data-together]').forEach(el => el.addEventListener('change', () => { state.together = el.checked; syncMixUI(); persist(); }));
+  document.querySelectorAll('[data-vol]').forEach(el => el.addEventListener('input', () => {
+    state.vol[el.dataset.vol] = +el.value; syncMixUI(); applyVolumes(); persist();
+  }));
+  $('bassRoot').addEventListener('change', e => { state.bass.root = +e.target.value; renderBass(); });
+  $('bassScale').addEventListener('change', e => { state.bass.scale = e.target.value; renderBass(); });
+  $('bassOct').addEventListener('change', e => { state.bass.oct = +e.target.value; renderBass(); });
+  document.querySelectorAll('.seg button[data-wave]').forEach(b => b.addEventListener('click', () => {
+    state.bass.wave = b.dataset.wave; if (bassVoice) bassVoice.osc.type = state.bass.wave;
+    renderBassControls(); persist();
+  }));
+  for (const k of Object.keys(KNOB_FMT)) {
+    $('bass_' + k).addEventListener('input', e => {
+      state.bass[k] = +e.target.value; $('bass_' + k + 'Out').textContent = KNOB_FMT[k](state.bass[k]);
+      if (k === 'reso' && bassVoice) bassVoice.filter.Q.value = state.bass.reso;
+      persist();
+    });
+  }
+  $('exportBass').addEventListener('click', exportBass);
+  bassCellsEl.addEventListener('click', e => {
+    const d = e.target.closest('.dot'); if (!d) return;
+    const s = +d.dataset.step;
+    while (bassCells.length <= s) bassCells.push({ mask: 0, src: '' });
+    const c = bassCells[s];
+    if (d.dataset.deg) {
+      const deg = +d.dataset.deg;
+      c.mask = degreeOf(c.mask) === deg ? 0 : (c.mask & ~7) | deg;
+    } else {
+      c.mask ^= +d.dataset.bit;
+    }
+    c.src = REVERSE[c.mask] || '';
+    // Write the line back as letters (braille symbol where no letter matches)
+    state.bass.text = bassInput.value = bassCells.map(x => (x.mask === 0 ? ' ' : REVERSE[x.mask] || glyph(x.mask))).join('');
+    bassSkipped = [];
+    renderBass();
+    if (playing && bassColEls[bassLit]) bassColEls[bassLit].classList.add('now');
+    const n = bassNoteAt(s);
+    if (n && d.dataset.deg) auditionBass(n);
+  });
 
   // ---------- Toast ----------
   let toastTimer;
@@ -654,7 +1154,7 @@ footer { color: var(--muted); font-size: 13px; }
 
   // ---------- Events ----------
   input.addEventListener('input', () => { state.text = input.value; rebuildFromText(); });
-  document.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => { input.value = state.text = b.dataset.ex; rebuildFromText(); }));
+  document.querySelectorAll('.chip[data-ex]').forEach(b => b.addEventListener('click', () => { input.value = state.text = b.dataset.ex; rebuildFromText(); }));
   $('copyBraille').addEventListener('click', () => {
     const s = cells.map(c => glyph(c.mask)).join('');
     navigator.clipboard.writeText(s).then(() => toast('Braille copied'), () => {
@@ -662,18 +1162,69 @@ footer { color: var(--muted); font-size: 13px; }
       const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Selected. Press ⌘C to copy');
     });
   });
-  $('play').addEventListener('click', () => (playing ? stop() : start()));
-  $('bpm').addEventListener('input', e => { state.bpm = +e.target.value; $('bpmOut').textContent = state.bpm + ' bpm'; persist(); });
-  $('swing').addEventListener('input', e => { state.swing = +e.target.value; $('swingOut').textContent = state.swing + '%'; persist(); });
-  $('pad').addEventListener('change', e => { state.pad = e.target.checked; renderAll(); });
-  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { state.mode = b.dataset.mode; lit = -1; renderAll(); }));
+  document.querySelectorAll('.play').forEach(b => b.addEventListener('click', () => (playing ? stop() : start())));
+  for (const id of ['bpm', 'bpmBass']) $(id).addEventListener('input', e => { state.bpm = +e.target.value; syncTempoUI(); persist(); });
+  for (const id of ['swing', 'swingBass']) $(id).addEventListener('input', e => { state.swing = +e.target.value; syncTempoUI(); persist(); });
+  $('pad').addEventListener('change', e => { state.pad = e.target.checked; renderAll(); renderBass(); });
+  document.querySelectorAll('.seg button[data-mode]').forEach(b => b.addEventListener('click', () => { state.mode = b.dataset.mode; lit = -1; renderAll(); }));
+
+  // ---------- Kits: pick, randomize, save, delete ----------
+  function closeSaveForm() { $('saveForm').hidden = true; }
+  $('kitSelect').addEventListener('change', e => {
+    const id = e.target.value;
+    state.kit = id;
+    state.voices = structuredClone(id === 'opium' || id === 'synth' ? KITS[id].defaults : userKit().voices);
+    closeSaveForm(); renderAll();
+  });
+  $('randomize').addEventListener('click', () => {
+    const pool = Object.keys(kitVoices()), lv = laneVoices();
+    for (let i = 0; i < lv.length; i++) lv[i] = pool[Math.floor(Math.random() * pool.length)];
+    renderAll();
+  });
+  $('saveKit').addEventListener('click', () => {
+    $('saveForm').hidden = false;
+    $('kitName').value = userKit() ? userKit().name : '';
+    renderKitBar(); $('kitName').focus();
+  });
+  $('cancelSave').addEventListener('click', () => { closeSaveForm(); renderKitBar(); });
+  $('saveForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('kitName').value.trim();
+    if (!name) { toast('Type a name for the kit'); return; }
+    let kit = state.userKits.find(k => k.name.toLowerCase() === name.toLowerCase());
+    const updating = !!kit;
+    if (kit) kit.voices = structuredClone(state.voices);
+    else { kit = { id: 'u' + Date.now().toString(36), name, voices: structuredClone(state.voices) }; state.userKits.push(kit); }
+    state.kit = kit.id;
+    closeSaveForm(); renderAll();
+    toast(updating ? `Updated “${name}”` : `Saved “${name}”`);
+  });
+  let deleteArmed = null;
+  $('deleteKit').addEventListener('click', () => {
+    const kit = userKit(); if (!kit) return;
+    if (!deleteArmed) {
+      $('deleteKit').textContent = `Click again to delete “${kit.name}”`;
+      deleteArmed = setTimeout(() => { deleteArmed = null; $('deleteKit').textContent = 'Delete kit'; }, 3000);
+      return;
+    }
+    clearTimeout(deleteArmed); deleteArmed = null; $('deleteKit').textContent = 'Delete kit';
+    state.userKits = state.userKits.filter(k => k.id !== kit.id);
+    state.kit = 'opium';
+    renderAll(); toast(`Deleted “${kit.name}”`);
+  });
+
+  $('clear').addEventListener('click', () => {
+    state.text = input.value = '';
+    cells = []; skipped = [];
+    renderAll(); toast('Cleared. Click the dots to build a beat');
+  });
   $('exportMidi').addEventListener('click', exportMidi);
 
   lanesEl.addEventListener('change', e => {
     if (e.target.tagName !== 'SELECT') return;
-    state.voices[state.mode][+e.target.dataset.lane] = e.target.value;
+    laneVoices()[+e.target.dataset.lane] = e.target.value;
     renderGrid(); renderKey(); persist();
-    if (ctx) SYNTH[e.target.value](ctx.currentTime + 0.01);
+    ensureAudio(); ctx.resume(); playVoice(e.target.value, ctx.currentTime + 0.01);
   });
 
   cellsEl.addEventListener('click', e => {
@@ -684,13 +1235,13 @@ footer { color: var(--muted); font-size: 13px; }
     cells[c].mask ^= bit;
     cells[c].src = REVERSE[cells[c].mask] || '';
     const turnedOn = !!(cells[c].mask & bit);
-    // The grid is now the source of truth: write it back as braille
-    state.text = input.value = cells.map(x => glyph(x.mask)).join('');
+    // The grid is now the source of truth: write it back as letters (braille symbol where no letter matches)
+    state.text = input.value = cells.map(x => (x.mask === 0 ? ' ' : REVERSE[x.mask] || glyph(x.mask))).join('');
     skipped = [];
     const keepLit = lit;
     renderAll();
     lit = keepLit; if (playing && colEls[lit]) colEls[lit].classList.add('now');
-    if (turnedOn) { ensureAudio(); ctx.resume(); SYNTH[state.voices[state.mode][li]](ctx.currentTime + 0.01); }
+    if (turnedOn) { ensureAudio(); ctx.resume(); playVoice(laneVoices()[li], ctx.currentTime + 0.01); }
   });
 
   document.addEventListener('keydown', e => {
@@ -700,6 +1251,9 @@ footer { color: var(--muted); font-size: 13px; }
 
   input.value = state.text;
   rebuildFromText();
+  bassInput.value = state.bass.text;
+  rebuildBass();
+  showView(state.view);
 })();
 </script>
 </body>
